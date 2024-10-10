@@ -1,5 +1,8 @@
 import { AIMLIcon } from "@/icons/AIML";
+import { DuckDuckGoIcon } from "@/icons/DuckDuckGo";
 import Perplexity from "@/icons/Perplexity/Perplexity";
+import { TavilyIcon } from "@/icons/Tavily";
+import { UnstructuredIcon } from "@/icons/Unstructured";
 import { AthenaIcon } from "@/icons/athena/index";
 import { freezeAllIcon } from "@/icons/freezeAll";
 import {
@@ -7,6 +10,7 @@ import {
   AlertTriangle,
   ArrowBigUp,
   ArrowLeft,
+  ArrowRight,
   ArrowUpToLine,
   Bell,
   Binary,
@@ -25,6 +29,7 @@ import {
   ChevronRight,
   ChevronRightSquare,
   ChevronUp,
+  ChevronsDownUp,
   ChevronsLeft,
   ChevronsRight,
   ChevronsUpDown,
@@ -61,6 +66,7 @@ import {
   FileText,
   FileType2,
   FileUp,
+  Filter,
   FlaskConical,
   FolderIcon,
   FolderPlus,
@@ -84,6 +90,8 @@ import {
   Laptop2,
   Layers,
   Link,
+  Link2,
+  ListFilter,
   Loader2,
   Lock,
   LogIn,
@@ -136,6 +144,7 @@ import {
   Sparkles,
   Square,
   SquarePen,
+  StickyNote,
   Store,
   SunIcon,
   Table,
@@ -167,12 +176,14 @@ import { FaApple, FaDiscord, FaGithub } from "react-icons/fa";
 import { AWSIcon } from "../icons/AWS";
 import { AirbyteIcon } from "../icons/Airbyte";
 import { AnthropicIcon } from "../icons/Anthropic";
+import { AssemblyAIIcon } from "../icons/AssemblyAI";
 import { AstraDBIcon } from "../icons/AstraDB";
 import { AzureIcon } from "../icons/Azure";
 import { BingIcon } from "../icons/Bing";
 import { BotMessageSquareIcon } from "../icons/BotMessageSquare";
 import { CassandraIcon } from "../icons/Cassandra";
 import { ChromaIcon } from "../icons/ChromaIcon";
+import { ClickhouseIcon } from "../icons/Clickhouse";
 import { CohereIcon } from "../icons/Cohere";
 import { ComposioIcon } from "../icons/Composio";
 import { ConfluenceIcon } from "../icons/Confluence";
@@ -192,6 +203,7 @@ import {
   GradientUngroup,
 } from "../icons/GradientSparkles";
 import { GroqIcon } from "../icons/Groq";
+import { HCDIcon } from "../icons/HCD";
 import { HuggingFaceIcon } from "../icons/HuggingFace";
 import { IFixIcon } from "../icons/IFixIt";
 import { LangChainIcon } from "../icons/LangChain";
@@ -203,6 +215,7 @@ import { NotionIcon } from "../icons/Notion";
 import { NvidiaIcon } from "../icons/Nvidia";
 import { OllamaIcon } from "../icons/Ollama";
 import { OpenAiIcon } from "../icons/OpenAi";
+import { OpenSearch } from "../icons/OpenSearch";
 import { PineconeIcon } from "../icons/Pinecone";
 import { PostgresIcon } from "../icons/Postgres";
 import { PythonIcon } from "../icons/Python";
@@ -284,6 +297,9 @@ export const nodeColors: { [char: string]: string } = {
   toolkits: "#DB2C2C",
   wrappers: "#E6277A",
   notion: "#000000",
+  Notion: "#000000",
+  AssemblyAI: "#213ED7",
+  assemblyai: "#213ED7",
   helpers: "#31A3CC",
   prototypes: "#E6277A",
   astra_assistants: "#272541",
@@ -311,6 +327,9 @@ export const nodeNames: { [char: string]: string } = {
   prompts: "Prompts",
   models: "Models",
   notion: "Notion",
+  Notion: "Notion",
+  AssemblyAI: "AssemblyAI",
+  assemblyai: "AssemblyAI",
   model_specs: "Model Specs",
   chains: "Chains",
   agents: "Agents",
@@ -333,6 +352,7 @@ export const nodeNames: { [char: string]: string } = {
   langchain_utilities: "Utilities",
   output_parsers: "Output Parsers",
   custom_components: "Custom",
+  link_extractors: "Link Extractors",
   unknown: "Other",
 };
 
@@ -370,11 +390,14 @@ export const nodeIconsLucide: iconsType = {
   Cassandra: CassandraIcon,
   Chroma: ChromaIcon,
   Couchbase: CouchbaseIcon,
+  Clickhouse: ClickhouseIcon,
   AirbyteJSONLoader: AirbyteIcon,
   AmazonBedrockEmbeddings: AWSIcon,
   Amazon: AWSIcon,
   Anthropic: AnthropicIcon,
   ChatAnthropic: AnthropicIcon,
+  assemblyai: AssemblyAIIcon,
+  AssemblyAI: AssemblyAIIcon,
   AstraDB: AstraDBIcon,
   BingSearchAPIWrapper: BingIcon,
   BingSearchRun: BingIcon,
@@ -391,8 +414,12 @@ export const nodeIconsLucide: iconsType = {
   GoogleSearchRun: GoogleIcon,
   Google: GoogleIcon,
   GoogleGenerativeAI: GoogleGenerativeAIIcon,
+  ArrowRight,
   Groq: GroqIcon,
+  HCD: HCDIcon,
   HNLoader: HackerNewsIcon,
+  Unstructured: UnstructuredIcon,
+  Filter: Filter,
   HuggingFaceHub: HuggingFaceIcon,
   HuggingFace: HuggingFaceIcon,
   HuggingFaceEmbeddings: HuggingFaceIcon,
@@ -402,10 +429,12 @@ export const nodeIconsLucide: iconsType = {
   Meta: MetaIcon,
   CheckCheck,
   Midjorney: MidjourneyIcon,
+  ListFilter,
   MongoDBAtlasVectorSearch: MongoDBIcon,
   MongoDB: MongoDBIcon,
   MongoDBChatMessageHistory: MongoDBIcon,
   notion: NotionIcon,
+  Notion: NotionIcon,
   NotionDirectoryLoader: NotionIcon,
   NVIDIA: NvidiaIcon,
   ChatOpenAI: OpenAiIcon,
@@ -443,6 +472,7 @@ export const nodeIconsLucide: iconsType = {
   saved_components: GradientSave,
   ScrollText,
   documentloaders: Paperclip,
+  link_extractors: Link2,
   vectorstores: Layers,
   vectorsearch: TextSearch,
   toolkits: Package2,
@@ -583,6 +613,8 @@ export const nodeIconsLucide: iconsType = {
   Command,
   ArrowBigUp,
   Dot,
+  StickyNote,
+  note: StickyNote,
   RotateCcw,
   Wrench,
   FolderPlusIcon,
@@ -594,6 +626,7 @@ export const nodeIconsLucide: iconsType = {
   MistralAI: MistralIcon,
   Upstash: UpstashSvgIcon,
   PGVector: CpuIcon,
+  ChevronsDownUp,
   Confluence: ConfluenceIcon,
   FreezeAll: freezeAllIcon,
   Table: Table,
@@ -604,4 +637,7 @@ export const nodeIconsLucide: iconsType = {
   OptionIcon: OptionIcon,
   Option: OptionIcon,
   Perplexity,
+  TavilyIcon,
+  DuckDuckGo: DuckDuckGoIcon,
+  OpenSearch,
 };

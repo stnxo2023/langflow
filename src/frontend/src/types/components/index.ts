@@ -1,5 +1,5 @@
 import { handleOnNewValueType } from "@/CustomNodes/hooks/use-handle-new-value";
-import { ReactElement, ReactNode, SetStateAction } from "react";
+import { ReactElement, ReactNode } from "react";
 import { ReactFlowJsonObject } from "reactflow";
 import { InputOutput } from "../../constants/enums";
 import {
@@ -42,32 +42,13 @@ export type InputComponentType = {
   isObjectOption?: boolean;
   onChangeFolderName?: (e: any) => void;
 };
-export type ToggleComponentType = {
-  enabled: boolean;
-  setEnabled: (state: boolean) => void;
-  disabled?: boolean | undefined;
-  size: "small" | "medium" | "large";
-  id?: string;
-  editNode?: boolean;
-};
-export type DropDownComponentType = {
+export type DropDownComponent = {
   disabled?: boolean;
   isLoading?: boolean;
   value: string;
   combobox?: boolean;
   options: string[];
   onSelect: (value: string, dbValue?: boolean, snapshot?: boolean) => void;
-  editNode?: boolean;
-  id?: string;
-  children?: ReactNode;
-};
-export type MultiselectComponentType = {
-  disabled?: boolean;
-  isLoading?: boolean;
-  value: string[];
-  combobox?: boolean;
-  options: string[];
-  onSelect: (value: string[], dbValue?: boolean, snapshot?: boolean) => void;
   editNode?: boolean;
   id?: string;
   children?: ReactNode;
@@ -124,73 +105,12 @@ export type NodeInputFieldComponentType = {
   showNode: boolean;
 };
 
-export type InputListComponentType = {
-  value: string[];
-  onChange: (value: string[], dbValue?: boolean, snapshot?: boolean) => void;
-  disabled: boolean;
-  editNode?: boolean;
-  componentName?: string;
-  playgroundDisabled?: boolean;
-  id?: string;
-};
-
-export type InputGlobalComponentType = {
-  disabled: boolean;
-  onChange: (value: string, dbValue: boolean, snapshot?: boolean) => void;
-  name: string;
-  data: Partial<InputFieldType>;
-  editNode?: boolean;
-  playgroundDisabled?: boolean;
-};
-
-export type KeyPairListComponentType = {
-  value: any;
-  onChange: (value: Object[]) => void;
-  disabled: boolean;
-  editNode?: boolean;
-  editNodeModal?: boolean;
-  isList?: boolean;
-  id?: string;
-};
-
-export type DictComponentType = {
+export type IOJSONInputComponentType = {
   value: any;
   onChange: (value) => void;
-  disabled?: boolean;
-  editNode?: boolean;
-  id?: string;
   left?: boolean;
   output?: boolean;
 };
-
-export type TextAreaComponentType = {
-  field_name?: string;
-  nodeClass?: APIClassType;
-  setNodeClass?: (value: APIClassType) => void;
-  disabled: boolean;
-  onChange: (
-    value: string[] | string,
-    dbValue?: boolean,
-    skipSnapshot?: boolean,
-  ) => void;
-  value: string;
-  editNode?: boolean;
-  id?: string;
-  readonly?: boolean;
-  password?: boolean;
-  updateVisibility?: () => void;
-};
-
-export type TableComponentType = {
-  description: string;
-  tableTitle: string;
-  onChange: (value: any[]) => void;
-  value: any[];
-  editNode?: boolean;
-  id?: string;
-  columns?: ColumnField[];
-};
-
 export type outputComponentType = {
   types: string[];
   selected: string;
@@ -199,51 +119,6 @@ export type outputComponentType = {
   idx: number;
   name: string;
   proxy?: OutputFieldProxyType;
-};
-
-export type PromptAreaComponentType = {
-  field_name?: string;
-  nodeClass?: APIClassType;
-  setNodeClass?: (value: APIClassType) => void;
-  disabled: boolean;
-  onChange: (
-    value: string[] | string,
-    dbValue?: boolean,
-    skipSnapshot?: boolean,
-  ) => void;
-  value: string;
-  readonly?: boolean;
-  editNode?: boolean;
-  id?: string;
-};
-
-export type CodeAreaComponentType = {
-  setOpenModal?: (bool: boolean) => void;
-  disabled: boolean;
-  onChange: (
-    value: string[] | string,
-    dbValue?: boolean,
-    skipSnapshot?: boolean,
-  ) => void;
-  value: string;
-  editNode?: boolean;
-  nodeClass?: APIClassType;
-  setNodeClass?: (value: APIClassType, type: string) => void;
-  dynamic?: boolean;
-  id?: string;
-  readonly?: boolean;
-  open?: boolean;
-  setOpen?: (open: boolean) => void;
-};
-
-export type FileComponentType = {
-  IOInputProps?;
-  disabled: boolean;
-  handleOnNewValue: handleOnNewValueType;
-  value: string;
-  fileTypes: Array<string>;
-  editNode?: boolean;
-  id?: string;
 };
 
 export type DisclosureComponentType = {
@@ -274,15 +149,6 @@ export type IntComponentType = {
   disabled?: boolean;
   rangeSpec: RangeSpecType;
   onChange: (value: number, dbValue?: boolean, skipSnapshot?: boolean) => void;
-  editNode?: boolean;
-  id?: string;
-};
-
-export type FloatComponentType = {
-  value: string;
-  disabled?: boolean;
-  onChange: (value: string, dbValue?: boolean, skipSnapshot?: boolean) => void;
-  rangeSpec: RangeSpecType;
   editNode?: boolean;
   id?: string;
 };
@@ -339,6 +205,8 @@ export type ShadTooltipProps = {
   style?: string;
 };
 export type ShadToolTipType = {
+  open?: boolean;
+  setOpen?: (open: boolean) => void;
   content?: ReactNode | null;
   side?: "top" | "right" | "bottom" | "left";
   asChild?: boolean;
@@ -367,6 +235,7 @@ export type IconComponentProps = {
   stroke?: string;
   strokeWidth?: number;
   id?: string;
+  skipFallback?: boolean;
 };
 
 export type InputProps = {
@@ -440,14 +309,14 @@ export type ConfirmationModalType = {
   modalContentTitle?: string;
   loading?: boolean;
   cancelText?: string;
-  confirmationText: string;
+  confirmationText?: string;
   children:
     | [React.ReactElement<ContentProps>, React.ReactElement<TriggerProps>]
     | React.ReactElement<ContentProps>;
   icon?: string;
   data?: any;
   index?: number;
-  onConfirm: (index, data) => void;
+  onConfirm?: (index, data) => void;
   open?: boolean;
   onClose?: () => void;
   size?:
@@ -633,7 +502,6 @@ export type nodeToolbarPropsType = {
   openAdvancedModal?: boolean;
   onCloseAdvancedModal?: (close: boolean) => void;
   isOutdated: boolean;
-  setShowState: (show: boolean | SetStateAction<boolean>) => void;
   updateNode: () => void;
 };
 
@@ -645,9 +513,7 @@ export type parsedDataType = {
 };
 
 export type SanitizedHTMLWrapperType = {
-  className: string;
   content: string;
-  onClick: () => void;
   suppressWarning?: boolean;
 };
 
@@ -775,7 +641,7 @@ export type tabsArrayType = {
 };
 
 export type codeTabsPropsType = {
-  open: boolean;
+  open?: boolean;
   tabs: Array<tabsArrayType>;
   activeTab: string;
   setActiveTab: (value: string) => void;
@@ -828,6 +694,7 @@ export type dropdownButtonPropsType = {
   options: Array<{ name: string; onBtnClick: () => void }>;
   plusButton?: boolean;
   dropdownOptions?: boolean;
+  isFetchingFolders?: boolean;
 };
 
 export type IOFieldViewProps = {

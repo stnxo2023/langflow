@@ -2,6 +2,7 @@ import { LANGFLOW_ACCESS_TOKEN } from "@/constants/constants";
 import { useCustomApiHeaders } from "@/customization/hooks/use-custom-api-headers";
 import useAuthStore from "@/stores/authStore";
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from "axios";
+import * as fetchIntercept from "fetch-intercept";
 import { useContext, useEffect } from "react";
 import { Cookies } from "react-cookie";
 import { BuildStatus } from "../../constants/enums";
@@ -27,6 +28,20 @@ function ApiInterceptor() {
   const customHeaders = useCustomApiHeaders();
 
   useEffect(() => {
+    const unregister = fetchIntercept.register({
+      request: function (url, config) {
+        const accessToken = cookies.get(LANGFLOW_ACCESS_TOKEN);
+        if (accessToken && !isAuthorizedURL(config?.url)) {
+          config.headers["Authorization"] = `Bearer ${accessToken}`;
+        }
+
+        for (const [key, value] of Object.entries(customHeaders)) {
+          config.headers[key] = value;
+        }
+        return [url, config];
+      },
+    });
+
     const interceptor = api.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
@@ -34,7 +49,7 @@ function ApiInterceptor() {
           error?.response?.status === 403 || error?.response?.status === 401;
 
         if (isAuthenticationError) {
-          if (!autoLogin) {
+          if (autoLogin !== undefined && !autoLogin) {
             if (error?.config?.url?.includes("github")) {
               return Promise.reject(error);
             }
@@ -103,8 +118,14 @@ function ApiInterceptor() {
           config.headers["Authorization"] = `Bearer ${accessToken}`;
         }
 
-        for (const [key, value] of Object.entries(customHeaders)) {
-          config.headers[key] = value;
+        const currentOrigin = window.location.origin;
+        const requestUrl = new URL(config?.url as string, currentOrigin);
+
+        const urlIsFromCurrentOrigin = requestUrl.origin === currentOrigin;
+        if (urlIsFromCurrentOrigin) {
+          for (const [key, value] of Object.entries(customHeaders)) {
+            config.headers[key] = value;
+          }
         }
 
         return {
@@ -121,8 +142,9 @@ function ApiInterceptor() {
       // Clean up the interceptors when the component unmounts
       api.interceptors.response.eject(interceptor);
       api.interceptors.request.eject(requestInterceptor);
+      unregister();
     };
-  }, [accessToken, setErrorData, customHeaders]);
+  }, [accessToken, setErrorData, customHeaders, autoLogin]);
 
   function checkErrorCount() {
     if (isLoginPage) return;
@@ -145,21 +167,18 @@ function ApiInterceptor() {
         error.config.headers[key] = value;
       }
     }
-    mutationRenewAccessToken(
-      {},
-      {
-        onSuccess: async (data) => {
-          authenticationErrorCount = 0;
-          await remakeRequest(error);
-          authenticationErrorCount = 0;
-        },
-        onError: (error) => {
-          console.error(error);
-          mutationLogout();
-          return Promise.reject("Authentication error");
-        },
+    mutationRenewAccessToken(undefined, {
+      onSuccess: async () => {
+        authenticationErrorCount = 0;
+        await remakeRequest(error);
+        authenticationErrorCount = 0;
       },
-    );
+      onError: (error) => {
+        console.error(error);
+        mutationLogout();
+        return Promise.reject("Authentication error");
+      },
+    });
   }
 
   async function clearBuildVerticesState(error) {
@@ -219,11 +238,8 @@ async function performStreamingRequest({
     // this flag is fundamental to ensure server stops tasks when client disconnects
     Connection: "close",
   };
-  const accessToken = cookies.get(LANGFLOW_ACCESS_TOKEN);
-  if (accessToken) {
-    headers["Authorization"] = `Bearer ${accessToken}`;
-  }
   const controller = new AbortController();
+  useFlowStore.getState().setBuildController(controller);
   const params = {
     method: method,
     headers: headers,
@@ -234,18 +250,19 @@ async function performStreamingRequest({
   }
   let current: string[] = [];
   let textDecoder = new TextDecoder();
-  const response = await fetch(url, params);
-  if (!response.ok) {
-    if (onError) {
-      onError(response.status);
-    } else {
-      throw new Error("error in streaming request");
-    }
-  }
-  if (response.body === null) {
-    return;
-  }
+
   try {
+    const response = await fetch(url, params);
+    if (!response.ok) {
+      if (onError) {
+        onError(response.status);
+      } else {
+        throw new Error("Error in streaming request.");
+      }
+    }
+    if (response.body === null) {
+      return;
+    }
     const reader = response.body.getReader();
     while (true) {
       const { done, value } = await reader.read();

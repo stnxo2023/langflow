@@ -1,18 +1,18 @@
-import asyncio
+from __future__ import annotations
+
+import contextlib
 import json
-from typing import TYPE_CHECKING, Any, cast
 from collections.abc import AsyncIterator, Generator, Iterator
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 from langchain_core.messages import AIMessage, AIMessageChunk
 from loguru import logger
 
 from langflow.graph.schema import CHAT_COMPONENTS, RECORDS_COMPONENTS, InterfaceComponentTypes, ResultData
-from langflow.graph.utils import UnbuiltObject, log_transaction, log_vertex_build, serialize_field
+from langflow.graph.utils import UnbuiltObject, log_vertex_build, rewrite_file_path, serialize_field
 from langflow.graph.vertex.base import Vertex
 from langflow.graph.vertex.exceptions import NoComponentInstance
-from langflow.graph.vertex.schema import NodeData
-from langflow.inputs.inputs import InputTypes
 from langflow.schema import Data
 from langflow.schema.artifact import ArtifactType
 from langflow.schema.message import Message
@@ -23,6 +23,8 @@ from langflow.utils.util import unescape_string
 
 if TYPE_CHECKING:
     from langflow.graph.edge.base import CycleEdge
+    from langflow.graph.vertex.schema import NodeData
+    from langflow.inputs.inputs import InputTypes
 
 
 class CustomComponentVertex(Vertex):
@@ -32,6 +34,7 @@ class CustomComponentVertex(Vertex):
     def _built_object_repr(self):
         if self.artifacts and "repr" in self.artifacts:
             return self.artifacts["repr"] or super()._built_object_repr()
+        return None
 
 
 class ComponentVertex(Vertex):
@@ -40,7 +43,8 @@ class ComponentVertex(Vertex):
 
     def get_input(self, name: str) -> InputTypes:
         if self._custom_component is None:
-            raise ValueError(f"Vertex {self.id} does not have a component instance.")
+            msg = f"Vertex {self.id} does not have a component instance."
+            raise ValueError(msg)
         return self._custom_component.get_input(name)
 
     def get_output(self, name: str) -> Output:
@@ -51,15 +55,16 @@ class ComponentVertex(Vertex):
     def _built_object_repr(self):
         if self.artifacts and "repr" in self.artifacts:
             return self.artifacts["repr"] or super()._built_object_repr()
+        return None
 
     def _update_built_object_and_artifacts(self, result):
         """
         Updates the built object and its artifacts.
         """
         if isinstance(result, tuple):
-            if len(result) == 2:
+            if len(result) == 2:  # noqa: PLR2004
                 self._built_object, self.artifacts = result
-            elif len(result) == 3:
+            elif len(result) == 3:  # noqa: PLR2004
                 self._custom_component, self._built_object, self.artifacts = result
                 self.logs = self._custom_component._output_logs
                 for key in self.artifacts:
@@ -71,7 +76,7 @@ class ComponentVertex(Vertex):
         for key, value in self._built_object.items():
             self.add_result(key, value)
 
-    def get_edge_with_target(self, target_id: str) -> Generator["CycleEdge", None, None]:
+    def get_edge_with_target(self, target_id: str) -> Generator[CycleEdge, None, None]:
         """
         Get the edge with the target id.
 
@@ -85,7 +90,7 @@ class ComponentVertex(Vertex):
             if edge.target_id == target_id:
                 yield edge
 
-    async def _get_result(self, requester: "Vertex", target_handle_name: str | None = None) -> Any:
+    async def _get_result(self, requester: Vertex, target_handle_name: str | None = None) -> Any:
         """
         Retrieves the result of the built component.
 
@@ -96,21 +101,22 @@ class ComponentVertex(Vertex):
         """
         flow_id = self.graph.flow_id
         if not self._built:
-            if flow_id:
-                asyncio.create_task(
-                    log_transaction(source=self, target=requester, flow_id=str(flow_id), status="error")
-                )
+            default_value = UNDEFINED
             for edge in self.get_edge_with_target(requester.id):
                 # We need to check if the edge is a normal edge
-                # or a contract edge
-
                 if edge.is_cycle and edge.target_param:
-                    return requester.get_value_from_template_dict(edge.target_param)
+                    default_value = requester.get_value_from_template_dict(edge.target_param)
 
-            raise ValueError(f"Component {self.display_name} has not been built yet")
+            if flow_id:
+                self._log_transaction_async(source=self, target=requester, flow_id=str(flow_id), status="error")
+            if default_value is not UNDEFINED:
+                return default_value
+            msg = f"Component {self.display_name} has not been built yet"
+            raise ValueError(msg)
 
         if requester is None:
-            raise ValueError("Requester Vertex is None")
+            msg = "Requester Vertex is None"
+            raise ValueError(msg)
 
         edges = self.get_edge_with_target(requester.id)
         result = UNDEFINED
@@ -133,13 +139,15 @@ class ComponentVertex(Vertex):
                 break
         if result is UNDEFINED:
             if edge is None:
-                raise ValueError(f"Edge not found between {self.display_name} and {requester.display_name}")
-            elif edge.source_handle.name not in self.results:
-                raise ValueError(f"Result not found for {edge.source_handle.name}. Results: {self.results}")
-            else:
-                raise ValueError(f"Result not found for {edge.source_handle.name} in {edge}")
+                msg = f"Edge not found between {self.display_name} and {requester.display_name}"
+                raise ValueError(msg)
+            if edge.source_handle.name not in self.results:
+                msg = f"Result not found for {edge.source_handle.name}. Results: {self.results}"
+                raise ValueError(msg)
+            msg = f"Result not found for {edge.source_handle.name} in {edge}"
+            raise ValueError(msg)
         if flow_id:
-            asyncio.create_task(log_transaction(source=self, target=requester, flow_id=str(flow_id), status="success"))
+            self._log_transaction_async(source=self, target=requester, flow_id=str(flow_id), status="success")
         return result
 
     def extract_messages_from_artifacts(self, artifacts: dict[str, Any]) -> list[dict]:
@@ -162,7 +170,7 @@ class ComponentVertex(Vertex):
             message_dict = artifact if isinstance(artifact, dict) else artifact.model_dump()
             if not message_dict.get("text"):
                 continue
-            try:
+            with contextlib.suppress(KeyError):
                 messages.append(
                     ChatOutputResponse(
                         message=message_dict["text"],
@@ -177,8 +185,6 @@ class ComponentVertex(Vertex):
                         type=self.artifacts_type[key],
                     ).model_dump(exclude_none=True)
                 )
-            except KeyError:
-                pass
         return messages
 
     def _finalize_build(self):
@@ -201,7 +207,9 @@ class ComponentVertex(Vertex):
 class InterfaceVertex(ComponentVertex):
     def __init__(self, data: NodeData, graph):
         super().__init__(data, graph=graph)
+        self._added_message = None
         self.steps = [self._build, self._run]
+        self.is_interface_component = True
 
     def build_stream_url(self):
         return f"/api/v1/build/{self.graph.flow_id}/{self.id}/stream"
@@ -210,8 +218,7 @@ class InterfaceVertex(ComponentVertex):
         if self.task_id and self.is_task:
             if task := self.get_task():
                 return str(task.info)
-            else:
-                return f"Task {self.task_id} is not running"
+            return f"Task {self.task_id} is not running"
         if self.artifacts:
             # dump as a yaml string
             if isinstance(self.artifacts, dict):
@@ -223,10 +230,9 @@ class InterfaceVertex(ComponentVertex):
             artifacts = []
             for artifact in _artifacts:
                 # artifacts = {k.title().replace("_", " "): v for k, v in self.artifacts.items() if v is not None}
-                artifact = {k.title().replace("_", " "): v for k, v in artifact.items() if v is not None}
-                artifacts.append(artifact)
-            yaml_str = yaml.dump(artifacts, default_flow_style=False, allow_unicode=True)
-            return yaml_str
+                _artifact = {k.title().replace("_", " "): v for k, v in artifact.items() if v is not None}
+                artifacts.append(_artifact)
+            return yaml.dump(artifacts, default_flow_style=False, allow_unicode=True)
         return super()._built_object_repr()
 
     def _process_chat_component(self):
@@ -257,6 +263,10 @@ class InterfaceVertex(ComponentVertex):
         sender = self.params.get("sender", None)
         sender_name = self.params.get("sender_name", None)
         message = self.params.get(INPUT_FIELD_NAME, None)
+        files = self.params.get("files", [])
+        treat_file_path = files is not None and not isinstance(files, list) and isinstance(files, str)
+        if treat_file_path:
+            self.params["files"] = rewrite_file_path(files)
         files = [{"path": file} if isinstance(file, str) else file for file in self.params.get("files", [])]
         if isinstance(message, str):
             message = unescape_string(message)
@@ -267,7 +277,7 @@ class InterfaceVertex(ComponentVertex):
             text_output = self.results["message"].text
         else:
             text_output = message
-        if isinstance(text_output, (AIMessage, AIMessageChunk)):
+        if isinstance(text_output, AIMessage | AIMessageChunk):
             artifacts = ChatOutputResponse.from_message(
                 text_output,
                 sender=sender,
@@ -280,7 +290,7 @@ class InterfaceVertex(ComponentVertex):
                 message = dict_to_codeblock(text_output)
             elif isinstance(text_output, Data):
                 message = text_output.text
-            elif isinstance(message, (AsyncIterator, Iterator)):
+            elif isinstance(message, AsyncIterator | Iterator):
                 stream_url = self.build_stream_url()
                 message = ""
                 self.results["text"] = message
@@ -344,7 +354,8 @@ class InterfaceVertex(ComponentVertex):
                 elif ignore_errors:
                     logger.error(f"Data expected, but got {value} of type {type(value)}")
                 else:
-                    raise ValueError(f"Data expected, but got {value} of type {type(value)}")
+                    msg = f"Data expected, but got {value} of type {type(value)}"
+                    raise ValueError(msg)
         self.artifacts = DataOutputResponse(data=artifacts)
         return self._built_object
 
@@ -354,7 +365,7 @@ class InterfaceVertex(ComponentVertex):
                 message = self._process_chat_component()
             elif self.vertex_type in RECORDS_COMPONENTS:
                 message = self._process_data_component()
-            if isinstance(self._built_object, (AsyncIterator, Iterator)):
+            if isinstance(self._built_object, AsyncIterator | Iterator):
                 if self.params.get("return_data", False):
                     self._built_object = Data(text=message, data=self.artifacts)
                 else:
@@ -366,22 +377,29 @@ class InterfaceVertex(ComponentVertex):
 
     async def stream(self):
         iterator = self.params.get(INPUT_FIELD_NAME, None)
-        if not isinstance(iterator, (AsyncIterator, Iterator)):
-            raise ValueError("The message must be an iterator or an async iterator.")
+        if not isinstance(iterator, AsyncIterator | Iterator):
+            msg = "The message must be an iterator or an async iterator."
+            raise TypeError(msg)
         is_async = isinstance(iterator, AsyncIterator)
         complete_message = ""
         if is_async:
             async for message in iterator:
-                message = message.content if hasattr(message, "content") else message
-                message = message.text if hasattr(message, "text") else message
-                yield message
-                complete_message += message
+                _message = message.content if hasattr(message, "content") else message
+                _message = _message.text if hasattr(_message, "text") else _message
+                yield _message
+                complete_message += _message
         else:
             for message in iterator:
-                message = message.content if hasattr(message, "content") else message
-                message = message.text if hasattr(message, "text") else message
-                yield message
-                complete_message += message
+                _message = message.content if hasattr(message, "content") else message
+                _message = _message.text if hasattr(_message, "text") else _message
+                yield _message
+                complete_message += _message
+
+        files = self.params.get("files", [])
+
+        treat_file_path = files is not None and not isinstance(files, list) and isinstance(files, str)
+        if treat_file_path:
+            self.params["files"] = rewrite_file_path(files)
 
         if hasattr(self.params.get("sender_name"), "get_text"):
             sender_name = self.params.get("sender_name").get_text()
@@ -406,7 +424,7 @@ class InterfaceVertex(ComponentVertex):
         self.params[INPUT_FIELD_NAME] = complete_message
         if isinstance(self._built_object, dict):
             for key, value in self._built_object.items():
-                if hasattr(value, "text") and (isinstance(value.text, (AsyncIterator, Iterator)) or value.text == ""):
+                if hasattr(value, "text") and (isinstance(value.text, AsyncIterator | Iterator) or value.text == ""):
                     self._built_object[key] = message
         else:
             self._built_object = message
@@ -421,13 +439,14 @@ class InterfaceVertex(ComponentVertex):
         for edge in edges:
             origin_vertex = self.graph.get_vertex(edge.source_id)
             for key, value in origin_vertex.results.items():
-                if isinstance(value, (AsyncIterator, Iterator)):
+                if isinstance(value, AsyncIterator | Iterator):
                     origin_vertex.results[key] = complete_message
-        if self._custom_component:
-            if hasattr(self._custom_component, "should_store_message") and hasattr(
-                self._custom_component, "store_message"
-            ):
-                self._custom_component.store_message(message)
+        if (
+            self._custom_component
+            and hasattr(self._custom_component, "should_store_message")
+            and hasattr(self._custom_component, "store_message")
+        ):
+            self._custom_component.store_message(message)
         log_vertex_build(
             flow_id=self.graph.flow_id,
             vertex_id=self.id,
@@ -464,6 +483,7 @@ class StateVertex(ComponentVertex):
     def _built_object_repr(self):
         if self.artifacts and "repr" in self.artifacts:
             return self.artifacts["repr"] or super()._built_object_repr()
+        return None
 
 
 def dict_to_codeblock(d: dict) -> str:

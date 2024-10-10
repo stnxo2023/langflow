@@ -1,6 +1,6 @@
 import ast
 import types
-from uuid import uuid4
+from textwrap import dedent
 
 import pytest
 from langchain_core.documents import Document
@@ -9,7 +9,6 @@ from langflow.custom import Component, CustomComponent
 from langflow.custom.code_parser.code_parser import CodeParser, CodeSyntaxError
 from langflow.custom.custom_component.base_component import BaseComponent, ComponentCodeNullError
 from langflow.custom.utils import build_custom_component_template
-from langflow.services.database.models.flow import FlowCreate
 
 
 @pytest.fixture
@@ -400,6 +399,7 @@ def test_custom_component_get_function_entrypoint_args_no_args():
     the CustomComponent class with a build method with no arguments.
     """
     my_code = """
+from langflow.custom import CustomComponent
 class MyMainClass(CustomComponent):
     def build():
         pass"""
@@ -415,6 +415,7 @@ def test_custom_component_get_function_entrypoint_return_type_no_return_type():
     CustomComponent class with a build method with no return type.
     """
     my_code = """
+from langflow.custom import CustomComponent
 class MyClass(CustomComponent):
     def build():
         pass"""
@@ -456,9 +457,8 @@ def test_build_config_no_code():
 
 
 @pytest.fixture
-def component(client, active_user):
-    return CustomComponent(
-        user_id=active_user.id,
+def component():
+    yield CustomComponent(
         field_config={
             "fields": {
                 "llm": {"type": "str"},
@@ -467,41 +467,6 @@ def component(client, active_user):
             }
         },
     )
-
-
-@pytest.fixture(scope="session")
-def test_flow(db):
-    flow_data = {
-        "nodes": [{"id": "1"}, {"id": "2"}],
-        "edges": [{"source": "1", "target": "2"}],
-    }
-
-    # Create flow
-    flow = FlowCreate(id=uuid4(), name="Test Flow", description="Fixture flow", data=flow_data)
-
-    # Add to database
-    db.add(flow)
-    db.commit()
-
-    yield flow
-
-    # Clean up
-    db.delete(flow)
-    db.commit()
-
-
-@pytest.fixture(scope="session")
-def db(app):
-    # Setup database for tests
-    yield app.db
-
-    # Teardown
-    app.db.drop_all()
-
-
-def test_list_flows_return_type(component):
-    flows = component.list_flows()
-    assert isinstance(flows, list)
 
 
 def test_build_config_return_type(component):
@@ -535,6 +500,28 @@ def test_build_config_field_value_keys(component):
     assert all("type" in value for value in field_values)
 
 
-def test_custom_component_multiple_outputs(code_component_with_multiple_outputs, active_user):
-    frontnd_node_dict, _ = build_custom_component_template(code_component_with_multiple_outputs, active_user.id)
+def test_custom_component_multiple_outputs(code_component_with_multiple_outputs):
+    frontnd_node_dict, _ = build_custom_component_template(code_component_with_multiple_outputs)
     assert frontnd_node_dict["outputs"][0]["types"] == ["Text"]
+
+
+def test_custom_component_subclass_from_lctoolcomponent():
+    # Import LCToolComponent and create a subclass
+    code = dedent("""
+    from langflow.base.langchain_utilities.model import LCToolComponent
+    from langchain_core.tools import Tool
+    class MyComponent(LCToolComponent):
+        name: str = "MyComponent"
+        description: str = "MyComponent"
+
+        def build_tool(self) -> Tool:
+            return Tool(name="MyTool", description="MyTool")
+
+        def run_model(self)-> Data:
+            return Data(data="Hello World")
+    """)
+    component = Component(_code=code)
+    frontend_node, _ = build_custom_component_template(component)
+    assert "outputs" in frontend_node
+    assert frontend_node["outputs"][0]["types"] != []
+    assert frontend_node["outputs"][1]["types"] != []

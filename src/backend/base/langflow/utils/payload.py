@@ -1,6 +1,5 @@
 import contextlib
 import re
-from typing import Dict
 
 
 def extract_input_variables(nodes):
@@ -40,7 +39,7 @@ def get_root_vertex(graph):
     return next((node for node in graph.vertices if node.id not in incoming_edges), None)
 
 
-def build_json(root, graph) -> Dict:
+def build_json(root, graph) -> dict:
     if "node" not in root.data:
         # If the root node has no "node" key, then it has only one child,
         # which is the target of the single outgoing edge
@@ -58,10 +57,11 @@ def build_json(root, graph) -> Dict:
     template = root.data["node"]["template"]
     final_dict = template.copy()
 
-    for key, value in final_dict.items():
+    for key in final_dict:
         if key == "_type":
             continue
 
+        value = final_dict[key]
         node_type = value["type"]
 
         if "value" in value and value["value"] is not None:
@@ -78,10 +78,11 @@ def build_json(root, graph) -> Dict:
                 children.extend(node_children)
 
             if value["required"] and not children:
-                raise ValueError(f"No child with type {node_type} found")
+                msg = f"No child with type {node_type} found"
+                raise ValueError(msg)
             values = [build_json(child, graph) for child in children]
             value = (
-                list(values) if value["list"] else next(iter(values), None)  # type: ignore
+                list(values) if value["list"] else next(iter(values), None)  # type: ignore[arg-type]
             )
         final_dict[key] = value
 
